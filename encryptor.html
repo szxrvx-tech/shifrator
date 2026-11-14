@@ -1,0 +1,312 @@
+<!DOCTYPE html>
+<html lang="ru">
+<head>
+<meta charset="UTF-8">
+<meta name="viewport" content="width=device-width, initial-scale=1.0">
+<title>SecretBox — шифратор</title>
+<style>
+  :root{
+    --bg:#0f1117; --panel:#171a24; --accent:#5b8cff; --accent2:#3ddc97;
+    --text:#e8eaf0; --muted:#8a90a3; --err:#ff6b6b; --border:#262a38;
+    --tg:#2aabee; --wa:#25d366;
+  }
+  *{box-sizing:border-box;}
+  body{
+    margin:0; min-height:100vh; background:var(--bg); color:var(--text);
+    font-family:'Segoe UI',Roboto,Arial,sans-serif;
+    display:flex; flex-direction:column; align-items:center; justify-content:center; padding:24px;
+  }
+  .card{
+    width:100%; max-width:640px; background:var(--panel);
+    border:1px solid var(--border); border-radius:16px; padding:28px 28px 22px;
+    box-shadow:0 20px 60px rgba(0,0,0,.4);
+  }
+  h1{margin:0 0 4px; font-size:22px;}
+  .sub{color:var(--muted); font-size:13px; margin:0 0 18px;}
+  label{display:block; font-size:13px; color:var(--muted); margin:16px 0 6px;}
+  textarea, input, select{
+    width:100%; background:#10121a; border:1px solid var(--border); color:var(--text);
+    border-radius:10px; padding:10px 12px; font-size:14px; font-family:inherit;
+    resize:vertical; outline:none; transition:border-color .15s;
+  }
+  textarea{min-height:90px;}
+  #out{font-family:Consolas,'Courier New',monospace;}
+  textarea:focus, input:focus, select:focus{border-color:var(--accent);}
+
+  .tabs{display:flex; gap:6px; background:#10121a; border:1px solid var(--border); border-radius:12px; padding:4px;}
+  .tab{flex:1; padding:9px; border:none; border-radius:9px; background:none; color:var(--muted); font-size:14px; font-weight:600; cursor:pointer;}
+  .tab.active{background:var(--accent); color:#fff;}
+
+  .row{display:flex; gap:10px; margin-top:18px; flex-wrap:wrap;}
+  button{
+    flex:1; min-width:140px; padding:11px 16px; border-radius:10px; border:none;
+    font-size:14px; font-weight:600; cursor:pointer; transition:transform .1s, opacity .15s;
+  }
+  button:active{transform:scale(.97);}
+  .dir{background:#262a38; color:var(--muted);}
+  #enc.active{background:var(--accent); color:#fff;}
+  #dec.active{background:var(--accent2); color:#06281b;}
+  .gray{background:#262a38; color:var(--text);}
+  #share{background:var(--accent); color:#fff;}
+
+  details{margin-top:14px;}
+  summary{cursor:pointer; color:var(--accent); font-size:13px;}
+  .grid{display:grid; grid-template-columns:repeat(3,1fr); gap:8px;}
+  .grid2{display:grid; grid-template-columns:1fr 2fr; gap:8px;}
+  .grid label, .grid2 label{margin:10px 0 4px;}
+
+  .share{position:relative; flex:1; min-width:140px; display:flex;}
+  .share > button{width:100%;}
+  .menu{position:absolute; bottom:calc(100% + 8px); left:0; width:260px; background:#1d2130; border:1px solid var(--border);
+    border-radius:12px; padding:10px; display:flex; flex-direction:column; gap:8px; box-shadow:0 12px 30px rgba(0,0,0,.5); z-index:5;}
+  .menu a{display:block; text-align:center; padding:10px; border-radius:10px; color:#fff; font-weight:600; font-size:14px; text-decoration:none;}
+  .menu .tg{background:var(--tg);} .menu .wa{background:var(--wa);}
+  .menu label{display:flex; gap:8px; align-items:center; margin:2px 0 0;}
+  .menu input[type=checkbox]{width:auto;}
+  .hidden{display:none !important;}
+
+  .status{margin-top:14px; font-size:13px; min-height:18px;}
+  .status.ok{color:var(--accent2);}
+  .status.err{color:var(--err);}
+  .hint{color:var(--muted); font-size:12px; margin-top:8px; line-height:1.5;}
+  footer{color:var(--muted); font-size:12px; margin-top:16px;}
+  footer a{color:var(--accent);}
+</style>
+</head>
+<body>
+  <div class="card">
+    <h1>🔐 SecretBox</h1>
+    <p class="sub">Пиши текст — шифр появляется сразу. Пароль не нужен. Всё происходит в браузере.</p>
+
+    <div class="tabs">
+      <button class="tab active" data-mode="enigma">Энигма</button>
+      <button class="tab" data-mode="caesar">Цезарь</button>
+      <button class="tab" data-mode="atbash">Атбаш</button>
+    </div>
+
+    <div class="row">
+      <button id="enc" class="dir active">Зашифровать</button>
+      <button id="dec" class="dir">Расшифровать</button>
+    </div>
+
+    <label for="text">Текст</label>
+    <textarea id="text" placeholder="Например: привет, встречаемся в 5" autofocus></textarea>
+    <div class="hint" id="modeHint"></div>
+
+    <!-- Настройки Энигмы -->
+    <details id="set-enigma">
+      <summary>⚙️ Настройки Энигмы (необязательно)</summary>
+      <div class="grid">
+        <div><label>Ротор 1</label><select data-rotor="0"></select></div>
+        <div><label>Ротор 2</label><select data-rotor="1"></select></div>
+        <div><label>Ротор 3</label><select data-rotor="2"></select></div>
+      </div>
+      <div class="grid2">
+        <div><label for="startPos">Старт</label><input id="startPos" value="AAA" maxlength="3"></div>
+        <div><label for="plug">Пары букв</label><input id="plug" placeholder="AB CD EF"></div>
+      </div>
+    </details>
+
+    <!-- Настройки Цезаря -->
+    <div id="set-caesar" class="hidden">
+      <label for="shift">Сдвиг</label>
+      <input id="shift" type="number" value="3" min="1" max="32" style="max-width:140px">
+    </div>
+
+    <label for="out">Результат</label>
+    <textarea id="out" readonly placeholder="Здесь появится результат"></textarea>
+
+    <div class="row">
+      <div class="share">
+        <button id="share">📤 Отправить</button>
+        <div class="menu hidden" id="menu">
+          <a class="tg" id="tgLink" href="#" target="_blank" rel="noopener">✈️ Telegram</a>
+          <a class="wa" id="waLink" href="#" target="_blank" rel="noopener">💬 WhatsApp</a>
+          <button class="gray" id="copyMsg">📋 Копировать сообщение</button>
+          <label><input type="checkbox" id="withKey" checked> Добавить ключ для расшифровки</label>
+        </div>
+      </div>
+      <button id="copy" class="gray">Скопировать</button>
+      <button id="clear" class="gray">Очистить</button>
+    </div>
+
+    <div id="status" class="status"></div>
+  </div>
+
+  <footer>SecretBox · <a id="siteLink" href="#"></a></footer>
+
+<script>
+const $ = (id) => document.getElementById(id);
+const mod = (n, m = 26) => ((n % m) + m) % m;
+const SITE = (location.protocol.startsWith('http') ? location.origin + location.pathname : '').replace(/index\.html$/, '');
+$('siteLink').href = SITE || '#';
+$('siteLink').textContent = SITE.replace(/^https?:\/\//, '').replace(/\/$/, '');
+
+let mode = 'enigma', dir = 'enc';
+
+function setStatus(msg, isErr) {
+  $('status').textContent = msg;
+  $('status').className = 'status ' + (isErr ? 'err' : 'ok');
+  clearTimeout(setStatus.t);
+  setStatus.t = setTimeout(() => $('status').textContent = '', 2500);
+}
+
+/* ===== Энигма I (отражатель B) ===== */
+const A = 'ABCDEFGHIJKLMNOPQRSTUVWXYZ';
+const ROTORS = {
+  I:   { w: 'EKMFLGDQVZNTOWYHXUSPAIBRCJ', n: 'Q' },
+  II:  { w: 'AJDKSIRUXBLHWTMCQGZNPYFVOE', n: 'E' },
+  III: { w: 'BDFHJLCPRTXVZNYEIWGAKMUSQO', n: 'V' },
+  IV:  { w: 'ESOVPZJAYQUIRHXLNFTGKDCMWB', n: 'J' },
+  V:   { w: 'VZBRGITYUPSDNHLXAWMJQOFECK', n: 'Z' }
+};
+const REFL = 'YRUHQSLDPXNGOKMIEBFZCWVJAT';
+const st = { rotors: ['I', 'II', 'III'], start: [0, 0, 0], pos: [0, 0, 0], plug: {} };
+
+function passRotor(c, name, pos, back) {
+  const w = ROTORS[name].w;
+  let x = mod(c + pos);
+  x = back ? w.indexOf(A[x]) : A.indexOf(w[x]);
+  return mod(x - pos);
+}
+function step() {
+  const mid = A[st.pos[1]] === ROTORS[st.rotors[1]].n;
+  const right = A[st.pos[2]] === ROTORS[st.rotors[2]].n;
+  if (mid) { st.pos[0] = mod(st.pos[0] + 1); st.pos[1] = mod(st.pos[1] + 1); }
+  else if (right) st.pos[1] = mod(st.pos[1] + 1);
+  st.pos[2] = mod(st.pos[2] + 1);
+}
+function enigmaLetter(ch) {
+  step();
+  let c = A.indexOf(st.plug[ch] || ch);
+  for (let i = 2; i >= 0; i--) c = passRotor(c, st.rotors[i], st.pos[i], false);
+  c = A.indexOf(REFL[c]);
+  for (let i = 0; i <= 2; i++) c = passRotor(c, st.rotors[i], st.pos[i], true);
+  return st.plug[A[c]] || A[c];
+}
+// Энигма знает только A–Z, поэтому русские буквы переводятся в латиницу
+const TR = { а:'a',б:'b',в:'v',г:'g',д:'d',е:'e',ё:'yo',ж:'zh',з:'z',и:'i',й:'y',к:'k',л:'l',м:'m',н:'n',о:'o',п:'p',р:'r',с:'s',т:'t',
+  у:'u',ф:'f',х:'kh',ц:'ts',ч:'ch',ш:'sh',щ:'sch',ъ:'',ы:'y',ь:'',э:'e',ю:'yu',я:'ya' };
+const translit = (t) => [...t].map(ch => { const l = ch.toLowerCase(); return l in TR ? TR[l] : ch; }).join('');
+function enigma(text) {
+  st.pos = [...st.start];
+  return [...translit(text).toUpperCase()].map(ch => A.includes(ch) ? enigmaLetter(ch) : ch).join('');
+}
+function readEnigmaSettings() {
+  const s = $('startPos').value.toUpperCase().replace(/[^A-Z]/g, '');
+  st.start = [0, 1, 2].map(i => s[i] ? A.indexOf(s[i]) : 0);
+  const map = {};
+  const raw = $('plug').value.toUpperCase().trim();
+  if (raw) for (const p of raw.split(/[\s,]+/).filter(Boolean)) {
+    if (!/^[A-Z]{2}$/.test(p) || p[0] === p[1]) { setStatus(`Неверная пара «${p}»: нужны две разные латинские буквы.`, true); return false; }
+    if (map[p[0]] || map[p[1]]) { setStatus(`Буква из пары «${p}» уже занята.`, true); return false; }
+    map[p[0]] = p[1]; map[p[1]] = p[0];
+  }
+  st.plug = map; return true;
+}
+function enigmaKey() {
+  const plug = $('plug').value.toUpperCase().trim().split(/[\s,]+/).filter(Boolean).join(' ');
+  return `роторы ${st.rotors.join('-')}, старт ${st.start.map(i => A[i]).join('')}` + (plug ? `, пары ${plug}` : '');
+}
+document.querySelectorAll('[data-rotor]').forEach(sel => {
+  const i = +sel.dataset.rotor;
+  sel.innerHTML = Object.keys(ROTORS).map(r => `<option ${r === st.rotors[i] ? 'selected' : ''}>${r}</option>`).join('');
+  sel.onchange = () => {
+    const v = sel.value, o = st.rotors.indexOf(v);
+    if (o !== -1 && o !== i) { st.rotors[o] = st.rotors[i]; document.querySelector(`[data-rotor="${o}"]`).value = st.rotors[o]; }
+    st.rotors[i] = v; update();
+  };
+});
+
+/* ===== Цезарь и Атбаш ===== */
+const EN = 'ABCDEFGHIJKLMNOPQRSTUVWXYZ', RU = 'АБВГДЕЁЖЗИЙКЛМНОПРСТУФХЦЧШЩЪЫЬЭЮЯ';
+function mapChars(text, fn) {
+  return [...text].map(ch => {
+    const up = ch.toUpperCase(), lower = ch !== up;
+    for (const abc of [EN, RU]) {
+      const i = abc.indexOf(up);
+      if (i !== -1) { const r = abc[fn(i, abc.length)]; return lower ? r.toLowerCase() : r; }
+    }
+    return ch;
+  }).join('');
+}
+const caesar = (t, k) => mapChars(t, (i, n) => mod(i + k, n));
+const atbash = (t) => mapChars(t, (i, n) => n - 1 - i);
+
+/* ===== Шифрование на лету ===== */
+const HINTS = {
+  enigma: 'Русские буквы автоматически пишутся латиницей (привет → privet): Энигма знает только A–Z.',
+  caesar: 'Каждая буква сдвигается на заданное число. Работает с русским и английским.',
+  atbash: 'Алфавит переворачивается: А↔Я, A↔Z. Настраивать ничего не нужно.'
+};
+function update() {
+  const t = $('text').value;
+  let r = '';
+  if (mode === 'enigma') { if (readEnigmaSettings()) r = enigma(t); }
+  else if (mode === 'caesar') { const k = parseInt($('shift').value, 10) || 0; r = caesar(t, dir === 'enc' ? k : -k); }
+  else r = atbash(t);
+  $('out').value = t.trim() ? r : '';
+  updateShare();
+}
+
+/* ===== Отправка ===== */
+const NAMES = { enigma: 'Энигма', caesar: 'Шифр Цезаря', atbash: 'Атбаш' };
+function buildMessage() {
+  let msg = `🔐 Шифровка из SecretBox\nМетод: ${NAMES[mode]}\n\n${$('out').value.trim()}\n`;
+  if ($('withKey').checked) {
+    if (mode === 'enigma') msg += `\n🔑 Ключ: ${enigmaKey()}\n`;
+    if (mode === 'caesar') msg += `\n🔑 Ключ: сдвиг ${parseInt($('shift').value, 10) || 0}\n`;
+  }
+  if (SITE) msg += `\n🔗 Расшифровать: ${SITE}`;
+  return msg;
+}
+function updateShare() {
+  const msg = buildMessage();
+  $('tgLink').href = 'https://t.me/share/url?url=' + encodeURIComponent(msg);
+  $('waLink').href = 'https://wa.me/?text=' + encodeURIComponent(msg);
+}
+async function copyText(text, okMsg) {
+  try { await navigator.clipboard.writeText(text); setStatus(okMsg, false); }
+  catch { setStatus('Не удалось скопировать. Выдели текст вручную.', true); }
+}
+
+/* ===== События ===== */
+$('text').addEventListener('input', update);
+['startPos', 'plug', 'shift'].forEach(id => $(id).addEventListener('input', update));
+$('withKey').onchange = updateShare;
+
+['enc', 'dec'].forEach(id => $(id).addEventListener('click', () => {
+  dir = id;
+  $('enc').classList.toggle('active', id === 'enc');
+  $('dec').classList.toggle('active', id === 'dec');
+  update();
+}));
+
+document.querySelectorAll('.tab').forEach(t => t.addEventListener('click', () => {
+  mode = t.dataset.mode;
+  document.querySelectorAll('.tab').forEach(x => x.classList.toggle('active', x === t));
+  $('set-enigma').classList.toggle('hidden', mode !== 'enigma');
+  $('set-caesar').classList.toggle('hidden', mode !== 'caesar');
+  $('modeHint').textContent = HINTS[mode];
+  update();
+}));
+
+$('share').addEventListener('click', (e) => {
+  e.stopPropagation();
+  if (!$('out').value.trim()) return setStatus('Сначала напиши сообщение.', true);
+  updateShare();
+  $('menu').classList.toggle('hidden');
+});
+$('menu').addEventListener('click', (e) => e.stopPropagation());
+document.addEventListener('click', () => $('menu').classList.add('hidden'));
+$('copyMsg').addEventListener('click', () => copyText(buildMessage(), 'Сообщение скопировано.'));
+$('copy').addEventListener('click', () => {
+  if (!$('out').value) return setStatus('Нечего копировать.', true);
+  copyText($('out').value, 'Результат скопирован.');
+});
+$('clear').addEventListener('click', () => { $('text').value = ''; update(); $('text').focus(); });
+
+$('modeHint').textContent = HINTS[mode];
+</script>
+</body>
+</html>
